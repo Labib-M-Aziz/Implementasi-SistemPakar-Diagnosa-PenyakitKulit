@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Pakar Penyakit Kulit (Terpisah)</title>
+    <title>Sistem Pakar Penyakit Kulit (Versi 10 Penyakit)</title>
     
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background-color: #f4f7f6; }
@@ -11,7 +11,7 @@
         h1 { text-align: center; color: #333; }
         .grid { display: grid; grid-template-columns: 1fr; gap: 25px; }
         @media (min-width: 768px) { .grid { grid-template-columns: 1fr 1fr; } }
-        .card { padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; }
+        .card { padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; max-height: 600px; overflow-y: auto; } /* Menambahkan scroll jika daftar gejala terlalu panjang */
         .card-title { font-size: 1.2em; font-weight: 600; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-top: 0; }
         .symptom-item { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; align-items: center; margin-bottom: 12px; }
         .symptom-item label { font-size: 0.95em; color: #444; }
@@ -47,20 +47,131 @@
     <script src="InferenceEngine-penyakit-kulit.js"></script>
 
     <script id="app-data">
-        // Konten dari rules.json
+        
+        // =====Konten dari rule-penyakit-kulit.json (12 Aturan) =====
         const allRules = [
-          { "id": "R1", "if": ["G8", "G10", "G39", "G40"], "then": "P9", "cf": 0.9 },
-          { "id": "R2", "if": ["G1", "G5", "G8"], "then": "P9", "cf": 0.7 },
-          { "id": "R3", "if": ["G1", "G16", "G36"], "then": "P4", "cf": 0.8 },
-          { "id": "R4", "if": ["G1", "G2", "G3", "G25"], "then": "P1", "cf": 0.85 },
-          { "id": "R5", "if": ["G1", "G13", "G14"], "then": "P6", "cf": 0.75 },
-          { "id": "R_SEQ1", "if": ["P9", "G4"], "then": "P_KOMPLIKASI_BISUL", "cf": 0.6 }
+            {
+              "id": "R1",
+              "if": ["G1", "G2", "G3", "G25"],
+              "then": "P1", // Eksim
+              "cf": 0.85
+            },
+            {
+              "id": "R2",
+              "if": ["G4", "G6", "G26", "G29", "G32", "G33"],
+              "then": "P2", // Campak
+              "cf": 0.8
+            },
+            {
+              "id": "R3",
+              "if": ["G1", "G4", "G20", "G27"],
+              "then": "P3", // Herpes Zoster
+              "cf": 0.8
+            },
+            {
+              "id": "R4",
+              "if": ["G1", "G16", "G36"],
+              "then": "P4", // Jerawat
+              "cf": 0.8
+            },
+            {
+              "id": "R5",
+              "if": ["G9", "G15", "G31", "G35"],
+              "then": "P5", // Melanoma
+              "cf": 0.9
+            },
+            {
+              "id": "R6",
+              "if": ["G1", "G13", "G14"],
+              "then": "P6", // Panu
+              "cf": 0.75
+            },
+            {
+              "id": "R7",
+              "if": ["G2", "G4", "G24"],
+              "then": "P7", // Impetigo
+              "cf": 0.7
+            },
+            {
+              "id": "R8",
+              "if": ["G1", "G18", "G19", "G23"],
+              "then": "P8", // Kutu air
+              "cf": 0.7
+            },
+            {
+              "id": "R9_A",
+              "if": ["G1", "G5", "G8"],
+              "then": "P9", // Bisul
+              "cf": 0.7
+            },
+            {
+              "id": "R9_B_PARALEL",
+              "if": ["G8", "G10", "G39", "G40"],
+              "then": "P9", // Bisul (Paralel)
+              "cf": 0.9
+            },
+            {
+              "id": "R10",
+              "if": ["G1", "G17", "G37"],
+              "then": "P10", // Kudis
+              "cf": 0.8
+            },
+            {
+              "id": "R_SEQ1_SEKUENSIAL",
+              "if": ["P9", "G4"],
+              "then": "P_KOMPLIKASI_BISUL",
+              "cf": 0.6
+            }
         ];
 
-        // Konten dari labels_kulit.json
+        // =====Konten dari label-penyakit-kulit.json =====
         const labels = {
-          "symptoms": { "G1": "Gatal", "G2": "Eritema (kulit kemerahan)", "G3": "Edema (pembengkakan)", "G4": "Demam", "G5": "Nyeri", "G8": "Benjolan membesar", "G10": "Bernanah", "G13": "Dijumpai pada bagian atas dada, lengan, leher", "G14": "Bercak berskuama halus (putih/hitam)", "G16": "Estetis (komedo, papul, pustul, nodus)", "G25": "Membasah", "G36": "Terdapat pada punggung, pantat, kaki, kulit kepala", "G39": "Ada Pembengkakan", "G40": "Benjolan berwarna kemerahan" },
-          "diseases": { "P1": "Eksim (Dermatitis)", "P4": "Jerawat (Akne Vulgaris)", "P6": "Panu (Pitiriasis Versikolor)", "P9": "Bisul (Furunkel)", "P_KOMPLIKASI_BISUL": "Komplikasi Bisul (Demam)" },
+          "symptoms": {
+            "G1": "Gatal",
+            "G2": "Eritema (kulit kemerahan)",
+            "G3": "Edema (pembengkakan)",
+            "G4": "Demam",
+            "G5": "Nyeri",
+            "G6": "Badan terasa lesu",
+            "G8": "Benjolan membesar",
+            "G9": "Berdarah",
+            "G10": "Bernanah",
+            "G13": "Dijumpai pada bagian atas dada, lengan, leher",
+            "G14": "Bercak berskuama halus (putih/hitam)",
+            "G15": "Bercak warna tidak homogen (coklat, hitam, biru)",
+            "G16": "Estetis (komedo, papul, pustul, nodus)",
+            "G17": "Gatal di malam hari",
+            "G18": "Gatal atau panas pada sela jari kaki",
+            "G19": "Iritasi (lepuh, terkadang berisi nanah)",
+            "G20": "Melepuh berisi cairan",
+            "G23": "Jika lepuhan pecah akan membuat luka",
+            "G24": "Melepuh dengan cairan kuning kemerahan",
+            "G25": "Membasah",
+            "G26": "Nafsu makan menurun drastis",
+            "G27": "Sering mengalami kesemutan",
+            "G29": "Pembengkakan kelenjar getah bening",
+            "G31": "Perubahan warna pada tahi lalat",
+            "G32": "Pilek",
+            "G33": "Radang mata",
+            "G35": "Tahi lalat pada kulit membesar",
+            "G36": "Terdapat pada punggung, pantat, kaki, kulit kepala",
+            "G37": "Terjadi disela-sela jari kaki, tangan, ketiak",
+            "G39": "Ada Pembengkakan",
+            "G40": "Benjolan berwarna kemerahan"
+          },
+          "diseases": {
+            "P1": "Eksim (Dermatitis)",
+            "P2": "Campak",
+            "P3": "Herpes Zoster",
+            "P4": "Jerawat (Akne Vulgaris)",
+            "P5": "Melanoma",
+            "P6": "Panu (Pitiriasis Versikolor)",
+            "P7": "Impetigo",
+            "P8": "Kutu air",
+            "P9": "Bisul (Furunkel)",
+            "P10": "Kudis",
+            "P_KOMPLIKASI_BISUL": "Komplikasi Bisul (Demam)"
+          },
           "certainty_options": [
             { "value": 0.0, "text": "Tidak" },
             { "value": 0.4, "text": "Mungkin" },
@@ -76,6 +187,8 @@
             const symptomListEl = document.getElementById('symptom-list');
             const diagnoseButtonEl = document.getElementById('diagnose-button');
             const resultsAreaEl = document.getElementById('results-area');
+            
+            // 'InferenceEngine' tersedia di sini karena sudah memuat 'engine.js'
             const engine = new InferenceEngine(allRules);
 
             // --- 1. Fungsi untuk mencari kemungkinan terdekat ---
@@ -110,47 +223,67 @@
 
             // --- 2. Fungsi untuk mengisi UI ---
             function populateUI() {
-                    const symptomsInRules = new Set();
-                    allRules.forEach(rule => {
-                        rule.if.forEach(premise => {
-                            if (premise.startsWith('G')) { symptomsInRules.add(premise); }
-                        });
+                const symptomsInRules = new Set();
+                allRules.forEach(rule => {
+                    rule.if.forEach(premise => {
+                        if (premise.startsWith('G')) { symptomsInRules.add(premise); }
                     });
-
-                    let html = '';
-                    const sortedSymptomCodes = Array.from(symptomsInRules).sort();
-
-                    sortedSymptomCodes.forEach(code => {
+                });
+                let html = '';
+                const sortedSymptomCodes = Object.keys(labels.symptoms).sort(); 
+                sortedSymptomCodes.forEach(code => {
+                    if (symptomsInRules.has(code)) { 
                         const name = labels.symptoms[code] || code;
                         html += `<div class="symptom-item">
-                                    <label for="${code}">${name}</label>
+                                    <label for="${code}">(${code}) ${name}</label>
                                     <select id="${code}" class="symptom-select">`;
                         labels.certainty_options.forEach(option => {
                             html += `<option value="${option.value}">${option.text}</option>`;
                         });
                         html += `</select></div>`;
-                    });
+                    }
+                });
+                symptomListEl.innerHTML = html;
+            }
 
-                    symptomListEl.innerHTML = html;
-                }
-
-
-            // --- 3. Fungsi untuk menampilkan hasil ---
+            // --- 3. Fungsi displayResults (menampilkan Persen + Teks) ---
             function displayResults(results, closestMatch) {
+                // Skenario 1: Diagnosa Pasti Ditemukan (Logika Engine BERHASIL)
                 if (results && Object.keys(results).length > 0) {
                     const sortedResults = Object.entries(results).sort((a, b) => b[1] - a[1]);
                     let html = '<h3>Hasil Inferensi:</h3>';
+                    
                     sortedResults.forEach(([code, cf]) => {
                         const name = labels.diseases[code] || code;
                         const cfPercent = (cf * 100).toFixed(2);
+                        
+                        // 1. Logika untuk menerjemahkan CF ke Label Deskriptif
+                        let descriptiveLabel = "";
+                        if (cf >= 0.8) {
+                            descriptiveLabel = `Ini berarti Anda <strong>dipastikan</strong> mengalami ${name}.`;
+                        } else if (cf >= 0.6) {
+                            descriptiveLabel = `Ini berarti Anda <strong>Kemungkinan Besar</strong> mengalami ${name}.`;
+                        } else if (cf >= 0.4) {
+                            descriptiveLabel = `Ini berarti Anda <strong>Mungkin</strong> mengalami ${name}.`;
+                        } else {
+                            descriptiveLabel = `Ada <strong>Kemungkinan Kecil</strong> Anda mengalami ${name}.`;
+                        }
+
+                        // 2. Menampilkan Keduanya:
+                        //    - Nama Penyakit + Persen
+                        //    - Teks Deskriptif (sebagai penjelas)
                         html += `<div class="result-item">
                                     <strong>${name}</strong><br>
-                                    <span>Tingkat Keyakinan: ${cfPercent}%</span>
+                                    <span style="font-size: 1.1em; color: #0056b3; font-weight: bold;">(Tingkat Keyakinan: ${cfPercent}%)</span>
+                                    <hr style="border: 0; border-top: 1px dashed #b3e0ff; margin: 10px 0;">
+                                    <span style="font-size: 0.95em; color: #333;">${descriptiveLabel}</span>
                                  </div>`;
                     });
                     resultsAreaEl.innerHTML = html;
                     return;
                 }
+
+                // Skenario 2: Diagnosa Gagal, TAPI Kemungkinan Terdekat Ditemukan
                 if (closestMatch) {
                     const name = labels.diseases[closestMatch.conclusion] || closestMatch.conclusion;
                     let html = '<h3>Tidak ada diagnosa pasti.</h3>';
@@ -160,6 +293,8 @@
                     resultsAreaEl.innerHTML = html;
                     return;
                 }
+                
+                // Skenario 3: Gagal Total
                 resultsAreaEl.innerHTML = '<p>Tidak ada diagnosa yang terdeteksi berdasarkan gejala terpilih.</p>';
             }
 
