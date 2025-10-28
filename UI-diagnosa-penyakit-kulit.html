@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Pakar Penyakit Kulit (Terpisah)</title>
+    
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background-color: #f4f7f6; }
+        .container { max-width: 900px; margin: 20px auto; padding: 20px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-radius: 10px; }
+        h1 { text-align: center; color: #333; }
+        .grid { display: grid; grid-template-columns: 1fr; gap: 25px; }
+        @media (min-width: 768px) { .grid { grid-template-columns: 1fr 1fr; } }
+        .card { padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; }
+        .card-title { font-size: 1.2em; font-weight: 600; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-top: 0; }
+        .symptom-item { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; align-items: center; margin-bottom: 12px; }
+        .symptom-item label { font-size: 0.95em; color: #444; }
+        .symptom-item select { padding: 5px; border-radius: 5px; border: 1px solid #ccc; width: 100%; }
+        #diagnose-button { display: block; width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 5px; font-size: 1.1em; font-weight: 600; cursor: pointer; transition: background-color 0.2s; }
+        #diagnose-button:hover { background-color: #0056b3; }
+        #diagnose-button:disabled { background-color: #c0c0c0; cursor: not-allowed; }
+        #results-area { margin-top: 20px; }
+        .result-item { background-color: #e6f7ff; border: 1px solid #b3e0ff; padding: 15px; border-radius: 5px; margin-bottom: 10px; }
+        .result-item strong { font-size: 1.1em; color: #0056b3; }
+        .result-item span { font-size: 1em; color: #333; }
+        .closest-match-item { background-color: #fffbe6; border: 1px solid #ffe58f; }
+        .closest-match-item strong { color: #d46b08; font-size: 1.1em; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Sistem Pakar Diagnosa Penyakit Kulit</h1>
+        <div class="grid">
+            <div class="card">
+                <h2 class="card-title">Pilih Gejala</h2>
+                <div id="symptom-list"></div>
+            </div>
+            <div class="card">
+                <h2 class="card-title">Hasil Diagnosa</h2>
+                <button id="diagnose-button">Mulai Diagnosa</button>
+                <div id="results-area"><p>Silakan pilih gejala di sebelah kiri.</p></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="InferenceEngine-penyakit-kulit.js"></script>
+
+    <script id="app-data">
+        // Konten dari rules.json
+        const allRules = [
+          { "id": "R1", "if": ["G8", "G10", "G39", "G40"], "then": "P9", "cf": 0.9 },
+          { "id": "R2", "if": ["G1", "G5", "G8"], "then": "P9", "cf": 0.7 },
+          { "id": "R3", "if": ["G1", "G16", "G36"], "then": "P4", "cf": 0.8 },
+          { "id": "R4", "if": ["G1", "G2", "G3", "G25"], "then": "P1", "cf": 0.85 },
+          { "id": "R5", "if": ["G1", "G13", "G14"], "then": "P6", "cf": 0.75 },
+          { "id": "R_SEQ1", "if": ["P9", "G4"], "then": "P_KOMPLIKASI_BISUL", "cf": 0.6 }
+        ];
+
+        // Konten dari labels_kulit.json
+        const labels = {
+          "symptoms": { "G1": "Gatal", "G2": "Eritema (kulit kemerahan)", "G3": "Edema (pembengkakan)", "G4": "Demam", "G5": "Nyeri", "G8": "Benjolan membesar", "G10": "Bernanah", "G13": "Dijumpai pada bagian atas dada, lengan, leher", "G14": "Bercak berskuama halus (putih/hitam)", "G16": "Estetis (komedo, papul, pustul, nodus)", "G25": "Membasah", "G36": "Terdapat pada punggung, pantat, kaki, kulit kepala", "G39": "Ada Pembengkakan", "G40": "Benjolan berwarna kemerahan" },
+          "diseases": { "P1": "Eksim (Dermatitis)", "P4": "Jerawat (Akne Vulgaris)", "P6": "Panu (Pitiriasis Versikolor)", "P9": "Bisul (Furunkel)", "P_KOMPLIKASI_BISUL": "Komplikasi Bisul (Demam)" },
+          "certainty_options": [
+            { "value": 0.0, "text": "Tidak" },
+            { "value": 0.4, "text": "Mungkin" },
+            { "value": 0.8, "text": "Yakin" },
+            { "value": 1.0, "text": "Sangat Yakin / Iya" }
+          ]
+        };
+    </script>
+
+    <script id="app-ui-logic">
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            const symptomListEl = document.getElementById('symptom-list');
+            const diagnoseButtonEl = document.getElementById('diagnose-button');
+            const resultsAreaEl = document.getElementById('results-area');
+            const engine = new InferenceEngine(allRules);
+
+            // --- 1. Fungsi untuk mencari kemungkinan terdekat ---
+            function findClosestMatch(userFacts, rules) {
+                let bestMatch = { rule: null, score: 0 };
+                for (const rule of rules) {
+                    const premises = rule.if;
+                    const isPrimaryRule = premises.every(p => p.startsWith('G'));
+                    if (!isPrimaryRule) { continue; }
+                    let matchCount = 0;
+                    const totalPremises = premises.length;
+                    for (const premise of premises) {
+                        if (userFacts[premise] !== undefined && userFacts[premise] > 0) {
+                            matchCount++;
+                        }
+                    }
+                    const matchScore = (matchCount / totalPremises);
+                    if (matchScore > bestMatch.score && matchScore > 0) { 
+                        bestMatch = { rule: rule, score: matchScore };
+                    }
+                }
+                if (bestMatch.rule) {
+                    const scorePercent = (bestMatch.score * 100);
+                    let descriptiveLabel = "";
+                    if (scorePercent >= 75) { descriptiveLabel = "Kemungkinan Besar"; }
+                    else if (scorePercent >= 40) { descriptiveLabel = "Mungkin"; }
+                    else { descriptiveLabel = "Kemungkinan Kecil"; }
+                    return { conclusion: bestMatch.rule.then, label: descriptiveLabel };
+                }
+                return null;
+            }
+
+            // --- 2. Fungsi untuk mengisi UI ---
+            function populateUI() {
+                    const symptomsInRules = new Set();
+                    allRules.forEach(rule => {
+                        rule.if.forEach(premise => {
+                            if (premise.startsWith('G')) { symptomsInRules.add(premise); }
+                        });
+                    });
+
+                    let html = '';
+                    const sortedSymptomCodes = Array.from(symptomsInRules).sort();
+
+                    sortedSymptomCodes.forEach(code => {
+                        const name = labels.symptoms[code] || code;
+                        html += `<div class="symptom-item">
+                                    <label for="${code}">${name}</label>
+                                    <select id="${code}" class="symptom-select">`;
+                        labels.certainty_options.forEach(option => {
+                            html += `<option value="${option.value}">${option.text}</option>`;
+                        });
+                        html += `</select></div>`;
+                    });
+
+                    symptomListEl.innerHTML = html;
+                }
+
+
+            // --- 3. Fungsi untuk menampilkan hasil ---
+            function displayResults(results, closestMatch) {
+                if (results && Object.keys(results).length > 0) {
+                    const sortedResults = Object.entries(results).sort((a, b) => b[1] - a[1]);
+                    let html = '<h3>Hasil Inferensi:</h3>';
+                    sortedResults.forEach(([code, cf]) => {
+                        const name = labels.diseases[code] || code;
+                        const cfPercent = (cf * 100).toFixed(2);
+                        html += `<div class="result-item">
+                                    <strong>${name}</strong><br>
+                                    <span>Tingkat Keyakinan: ${cfPercent}%</span>
+                                 </div>`;
+                    });
+                    resultsAreaEl.innerHTML = html;
+                    return;
+                }
+                if (closestMatch) {
+                    const name = labels.diseases[closestMatch.conclusion] || closestMatch.conclusion;
+                    let html = '<h3>Tidak ada diagnosa pasti.</h3>';
+                    html += `<div class="result-item closest-match-item">
+                                <strong>Anda ${closestMatch.label} mengalami ${name}</strong>
+                             </div>`;
+                    resultsAreaEl.innerHTML = html;
+                    return;
+                }
+                resultsAreaEl.innerHTML = '<p>Tidak ada diagnosa yang terdeteksi berdasarkan gejala terpilih.</p>';
+            }
+
+            // --- 4. Event listener tombol diagnosa ---
+            diagnoseButtonEl.addEventListener('click', () => {
+                diagnoseButtonEl.disabled = true;
+                resultsAreaEl.innerHTML = '<p>Menganalisis...</p>';
+
+                const payload = {};
+                const selects = document.querySelectorAll('.symptom-select');
+                selects.forEach(select => {
+                    const cfValue = parseFloat(select.value);
+                    if (cfValue > 0.0) { payload[select.id] = cfValue; }
+                });
+
+                setTimeout(() => {
+                    try {
+                        const results = engine.run(payload); 
+                        if (Object.keys(results).length > 0) {
+                            displayResults(results, null);
+                        } else {
+                            const closestMatch = findClosestMatch(payload, allRules);
+                            displayResults({}, closestMatch);
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        resultsAreaEl.innerHTML = `<p style="color: red;">Terjadi error: ${e.message}</p>`;
+                    }
+                    diagnoseButtonEl.disabled = false;
+                }, 0); 
+            });
+
+            // --- Jalankan fungsi populateUI saat halaman dimuat ---
+            populateUI();
+        });
+    </script>
+
+</body>
+</html>
